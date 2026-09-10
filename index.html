@@ -1,0 +1,423 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>課堂簽到簿｜老師管理</title>
+<link rel="stylesheet" href="style.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="topbar-inner">
+    <div class="brand">
+      <div class="brand-logo">✓</div>
+      <div>
+        <div class="brand-title" id="appName">課堂簽到簿</div>
+        <div class="brand-sub" id="appSub">QR Code 點名與課堂互動</div>
+      </div>
+    </div>
+    <div style="display:flex;gap:10px;align-items:center">
+      <span class="pill pill-muted" id="statusPill">尚未登入</span>
+      <button class="btn btn-sm" id="logoutBtn" hidden>登出</button>
+    </div>
+  </div>
+</header>
+
+<div class="container">
+  <nav class="tabs">
+    <a class="active" href="index.html">老師管理</a>
+    <a href="student.html">學生報到</a>
+  </nav>
+
+  <!-- ── 登入 ── -->
+  <section id="loginView" class="card center" hidden>
+    <div class="eyebrow">老師登入</div>
+    <h2>登入管理後台</h2>
+    <p class="meta">請使用 Firebase Authentication 中建立的老師帳號登入。</p>
+    <div id="loginError" class="alert alert-error" hidden></div>
+    <label>Email</label>
+    <input id="loginEmail" type="email" autocomplete="username" placeholder="teacher@example.edu.tw">
+    <label>密碼</label>
+    <input id="loginPassword" type="password" autocomplete="current-password" placeholder="密碼">
+    <div style="margin-top:18px">
+      <button class="btn btn-primary btn-block" id="loginBtn">登入</button>
+    </div>
+  </section>
+
+  <!-- ── 載入中 ── -->
+  <section id="loadingView" class="card center">
+    <p class="empty">正在讀取課堂資料…</p>
+  </section>
+
+  <!-- ── 尚無週次 ── -->
+  <section id="emptyView" class="card center" hidden>
+    <div class="eyebrow">開始使用</div>
+    <h2>建立第一週</h2>
+    <p class="meta">輸入課程日期與時間，立即產生學生可掃描的簽到 QR Code。</p>
+    <div style="margin-top:14px">
+      <button class="btn btn-primary btn-block" id="createFirstBtn">＋ 建立第一週</button>
+    </div>
+  </section>
+
+  <!-- ── 主畫面 ── -->
+  <section id="mainView" hidden>
+    <div id="mainError" class="alert alert-error" hidden></div>
+    <div class="grid">
+      <div>
+        <div style="display:flex;justify-content:space-between;align-items:flex-end;gap:12px;flex-wrap:wrap">
+          <div>
+            <div class="eyebrow" id="weekLabel">第一週</div>
+            <h1 id="courseName">專題討論</h1>
+            <div class="meta" id="sessionMeta">—</div>
+          </div>
+          <button class="btn btn-primary" id="createNextBtn">＋ 建立下一週</button>
+        </div>
+
+        <div class="stats">
+          <div class="stat"><div class="stat-label">👥 已簽到</div><div class="stat-value" id="statCount">0</div></div>
+          <div class="stat"><div class="stat-label">❓ 本週發問</div><div class="stat-value" id="statQuestions">0</div></div>
+          <div class="stat"><div class="stat-label">🕒 簽到狀態</div><div class="stat-value" id="statStatus">開放</div></div>
+        </div>
+
+        <div class="toolbar">
+          <select id="sessionSelect" style="width:auto;min-width:200px"></select>
+          <div class="toolbar-right">
+            <button class="btn" id="exportWeekBtn">⬇ 匯出本週</button>
+            <button class="btn" id="exportAllBtn">⬇ 匯出全學期</button>
+            <button class="btn" id="toggleBtn">⨂ 關閉簽到</button>
+          </div>
+        </div>
+
+        <div class="card" style="padding:0">
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>學生</th><th>報到時間</th><th class="num">本週發問</th></tr></thead>
+              <tbody id="attendeeBody">
+                <tr><td colspan="3" class="empty">尚未有學生簽到</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+        <p class="help" style="margin-top:8px">學生舉手發問時，按「＋」記一次；按錯可按「－」。所有變更會即時儲存。</p>
+      </div>
+
+      <div class="card card-dark">
+        <div class="eyebrow">本週簽到碼</div>
+        <div class="qr-code-text" id="codeText">—</div>
+        <div class="qr-box"><div id="qrcode"></div></div>
+        <div class="qr-link" id="qrLink"></div>
+        <div class="qr-note">投影此畫面讓學生掃描。每週建立新簽到，都會產生新的報到連結。</div>
+        <div style="text-align:center;margin-top:12px">
+          <button class="btn btn-sm" id="fullscreenBtn">🔍 放大投影</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <p class="footer">課堂簽到簿 · 靜態網頁 + Firebase Firestore</p>
+</div>
+
+<!-- ── 建週視窗 ── -->
+<div class="modal-backdrop" id="createModal" hidden>
+  <div class="modal">
+    <div class="eyebrow">建立新一週</div>
+    <h2 id="createTitle">建立下一週</h2>
+    <p class="meta">上一週會自動關閉，並產生新的簽到 QR Code。</p>
+    <div id="createError" class="alert alert-error" hidden></div>
+    <label>課程名稱</label>
+    <input id="fCourse" type="text">
+    <label>週次</label>
+    <input id="fNumber" type="number" min="1" step="1">
+    <label>上課日期</label>
+    <input id="fDate" type="date">
+    <div class="row">
+      <div><label>開始時間</label><input id="fStart" type="time"></div>
+      <div><label>結束時間</label><input id="fEnd" type="time"></div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn" id="createCancel">取消</button>
+      <button class="btn btn-primary" id="createConfirm">建立並開放簽到</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── 投影放大視窗 ── -->
+<div class="modal-backdrop" id="bigModal" hidden style="background:var(--navy)">
+  <div style="text-align:center;color:#fff;max-width:640px;width:100%">
+    <div style="font-size:22px;opacity:.8" id="bigTitle"></div>
+    <div style="font-size:48px;font-weight:800;letter-spacing:.06em;margin:6px 0 16px" id="bigCode"></div>
+    <div class="qr-box" style="display:inline-flex"><div id="bigQr"></div></div>
+    <div style="margin-top:14px;font-size:16px;opacity:.85" id="bigLink"></div>
+    <div style="margin-top:18px"><button class="btn" id="bigClose">關閉</button></div>
+  </div>
+</div>
+
+<script type="module">
+import { firebaseConfig, APP_NAME, APP_SUBTITLE, DEFAULT_COURSE } from "./firebase-config.js";
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-app.js";
+import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged }
+  from "https://www.gstatic.com/firebasejs/10.12.4/firebase-auth.js";
+import { getFirestore, collection, doc, addDoc, updateDoc, getDocs, query, orderBy, where,
+  onSnapshot, serverTimestamp, writeBatch, increment }
+  from "https://www.gstatic.com/firebasejs/10.12.4/firebase-firestore.js";
+
+const $ = (id) => document.getElementById(id);
+document.title = `${APP_NAME}｜老師管理`;
+$("appName").textContent = APP_NAME;
+$("appSub").textContent = APP_SUBTITLE;
+
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const db = getFirestore(app);
+
+// ─── state ───
+let sessions = [];          // 依週次排序
+let selected = null;        // 目前選取的 session
+let attendees = [];         // 目前 session 的簽到名單
+let unsubSessions = null, unsubAttendees = null;
+let pendingSelectId = null; // 建立新週後要自動選取的 id
+
+// ─── helpers ───
+const pad = (n) => String(n).padStart(2, "0");
+const todayStr = () => { const d = new Date(); return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`; };
+const zhNum = ["零","一","二","三","四","五","六","七","八","九","十","十一","十二","十三","十四","十五","十六","十七","十八","十九","二十"];
+const weekName = (n) => `第${zhNum[n] ?? n}週`;
+const fmtTime = (ts) => {
+  if (!ts) return "—";
+  const d = ts.toDate ? ts.toDate() : new Date(ts);
+  return `${pad(d.getMonth()+1)}/${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+};
+const fmtFull = (ts) => {
+  if (!ts) return "";
+  const d = ts.toDate ? ts.toDate() : new Date(ts);
+  return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+};
+function genCode(dateStr, n) {
+  const md = dateStr.replace(/-/g, "").slice(4);
+  const hex = Array.from(crypto.getRandomValues(new Uint8Array(2)))
+    .map(b => b.toString(16).padStart(2, "0")).join("").toUpperCase();
+  return `${md}-${n}-${hex}`;
+}
+const studentUrl = (code) => {
+  const base = location.href.replace(/[^/]*$/, "");
+  return `${base}student.html?code=${encodeURIComponent(code)}`;
+};
+function show(id, on) { $(id).hidden = !on; }
+function showError(id, msg) { const el = $(id); el.textContent = msg || ""; el.hidden = !msg; }
+function csvEscape(v) { const s = String(v ?? ""); return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s; }
+function downloadCsv(filename, rows) {
+  const csv = "﻿" + rows.map(r => r.map(csvEscape).join(",")).join("\r\n");
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
+  a.download = filename; a.click(); URL.revokeObjectURL(a.href);
+}
+
+// ─── auth ───
+onAuthStateChanged(auth, (user) => {
+  const isTeacher = user && !user.isAnonymous;
+  show("loginView", !isTeacher);
+  show("logoutBtn", !!isTeacher);
+  if (!isTeacher) {
+    show("loadingView", false); show("mainView", false); show("emptyView", false);
+    $("statusPill").textContent = "尚未登入"; $("statusPill").className = "pill pill-muted";
+    if (unsubSessions) { unsubSessions(); unsubSessions = null; }
+    if (unsubAttendees) { unsubAttendees(); unsubAttendees = null; }
+    return;
+  }
+  show("loadingView", true);
+  listenSessions();
+});
+$("loginBtn").onclick = async () => {
+  showError("loginError", "");
+  try { await signInWithEmailAndPassword(auth, $("loginEmail").value.trim(), $("loginPassword").value); }
+  catch (e) { showError("loginError", "登入失敗：" + (e.code || e.message)); }
+};
+$("loginPassword").addEventListener("keydown", (e) => { if (e.key === "Enter") $("loginBtn").click(); });
+$("logoutBtn").onclick = () => signOut(auth);
+
+// ─── sessions ───
+function listenSessions() {
+  if (unsubSessions) unsubSessions();
+  const q = query(collection(db, "sessions"), orderBy("sessionNumber", "asc"));
+  unsubSessions = onSnapshot(q, (snap) => {
+    sessions = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    show("loadingView", false);
+    if (!sessions.length) { show("emptyView", true); show("mainView", false); return; }
+    show("emptyView", false); show("mainView", true);
+    // 保持目前選取；若無則選最新一週
+    const pending = pendingSelectId && sessions.find(s => s.id === pendingSelectId);
+    if (pending) pendingSelectId = null;
+    const keep = selected && sessions.find(s => s.id === selected.id);
+    selectSession(pending ? pending.id : keep ? keep.id : sessions[sessions.length - 1].id);
+  }, (err) => { show("loadingView", false); show("mainView", true); showError("mainError", "無法讀取資料：" + err.message); });
+}
+
+function selectSession(id) {
+  const s = sessions.find(x => x.id === id);
+  if (!s) return;
+  const changed = !selected || selected.id !== id;
+  selected = s;
+  renderSession();
+  if (changed) listenAttendees();
+}
+
+function renderSession() {
+  const s = selected;
+  $("weekLabel").textContent = weekName(s.sessionNumber);
+  $("courseName").textContent = s.courseName;
+  $("sessionMeta").textContent = `${s.classDate}・${s.startTime}–${s.endTime}`;
+  const open = s.status === "open";
+  $("statStatus").textContent = open ? "開放" : "關閉";
+  $("toggleBtn").textContent = open ? "⨂ 關閉簽到" : "↻ 重新開放";
+  $("toggleBtn").className = open ? "btn btn-danger" : "btn";
+  $("statusPill").textContent = open ? "簽到開放中" : "本週已關閉";
+  $("statusPill").className = "pill " + (open ? "pill-open" : "pill-closed");
+  $("codeText").textContent = s.code;
+  // 週次選單
+  const sel = $("sessionSelect");
+  sel.innerHTML = sessions.map(x =>
+    `<option value="${x.id}" ${x.id === s.id ? "selected" : ""}>${weekName(x.sessionNumber)}・${x.classDate}${x.status === "open" ? "（開放中）" : ""}</option>`).join("");
+  // QR
+  const url = studentUrl(s.code);
+  $("qrcode").innerHTML = "";
+  new QRCode($("qrcode"), { text: url, width: 220, height: 220, correctLevel: QRCode.CorrectLevel.M });
+  $("qrLink").innerHTML = `<a href="${url}" target="_blank" rel="noopener">${url}</a>`;
+}
+$("sessionSelect").onchange = (e) => selectSession(e.target.value);
+
+// ─── attendees ───
+function listenAttendees() {
+  if (unsubAttendees) unsubAttendees();
+  const q = query(collection(db, "attendees"), where("sessionId", "==", selected.id));
+  unsubAttendees = onSnapshot(q, (snap) => {
+    attendees = snap.docs.map(d => ({ id: d.id, ...d.data() }))
+      .sort((a, b) => (a.checkedInAt?.toMillis?.() ?? 0) - (b.checkedInAt?.toMillis?.() ?? 0));
+    renderAttendees();
+  }, (err) => showError("mainError", "無法讀取簽到名單：" + err.message));
+}
+function renderAttendees() {
+  $("statCount").textContent = attendees.length;
+  $("statQuestions").textContent = attendees.reduce((n, a) => n + (a.questions || 0), 0);
+  const body = $("attendeeBody");
+  if (!attendees.length) { body.innerHTML = `<tr><td colspan="3" class="empty">尚未有學生簽到</td></tr>`; return; }
+  body.innerHTML = attendees.map(a => `
+    <tr>
+      <td><strong>${esc(a.name)}</strong><div class="meta">${esc(a.studentId)}</div></td>
+      <td>${fmtTime(a.checkedInAt)}</td>
+      <td class="num">
+        <span class="counter">
+          <button class="btn btn-sm" data-q="-1" data-id="${a.id}" title="減少" ${!(a.questions > 0) ? "disabled" : ""}>－</button>
+          <span class="val">${a.questions || 0}</span>
+          <button class="btn btn-sm" data-q="1" data-id="${a.id}" title="增加">＋</button>
+        </span>
+      </td>
+    </tr>`).join("");
+}
+function esc(s) { return String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c])); }
+$("attendeeBody").addEventListener("click", async (e) => {
+  const btn = e.target.closest("button[data-q]");
+  if (!btn) return;
+  const delta = Number(btn.dataset.q);
+  const a = attendees.find(x => x.id === btn.dataset.id);
+  if (!a || (delta < 0 && !(a.questions > 0))) return;
+  btn.disabled = true;
+  try { await updateDoc(doc(db, "attendees", a.id), { questions: increment(delta) }); }
+  catch (err) { showError("mainError", "更新失敗：" + err.message); }
+});
+
+// ─── 開關簽到 ───
+$("toggleBtn").onclick = async () => {
+  const open = selected.status === "open";
+  try { await updateDoc(doc(db, "sessions", selected.id), { status: open ? "closed" : "open" }); }
+  catch (err) { showError("mainError", "更新失敗：" + err.message); }
+};
+
+// ─── 建立週次 ───
+function openCreate() {
+  const last = sessions[sessions.length - 1];
+  $("createTitle").textContent = last ? "建立下一週" : "建立第一週";
+  $("fCourse").value = last ? last.courseName : DEFAULT_COURSE;
+  $("fNumber").value = last ? last.sessionNumber + 1 : 1;
+  $("fDate").value = todayStr();
+  $("fStart").value = last ? last.startTime : "09:00";
+  $("fEnd").value = last ? last.endTime : "11:59";
+  showError("createError", "");
+  show("createModal", true);
+}
+$("createFirstBtn").onclick = openCreate;
+$("createNextBtn").onclick = openCreate;
+$("createCancel").onclick = () => show("createModal", false);
+$("createConfirm").onclick = async () => {
+  const courseName = $("fCourse").value.trim(), n = Number($("fNumber").value),
+        classDate = $("fDate").value, startTime = $("fStart").value, endTime = $("fEnd").value;
+  if (!courseName || !n || !classDate || !startTime || !endTime) { showError("createError", "請完整填寫課程名稱、週次、日期與時間。"); return; }
+  if (sessions.some(s => s.sessionNumber === n)) { showError("createError", `第 ${n} 週已存在，請改用其他週次。`); return; }
+  $("createConfirm").disabled = true;
+  try {
+    const batch = writeBatch(db);
+    sessions.filter(s => s.status === "open").forEach(s => batch.update(doc(db, "sessions", s.id), { status: "closed" }));
+    const ref = doc(collection(db, "sessions"));
+    batch.set(ref, { courseName, sessionNumber: n, classDate, startTime, endTime,
+      code: genCode(classDate, n), status: "open", createdAt: serverTimestamp() });
+    pendingSelectId = ref.id;   // 讓 snapshot 更新後自動選到新週
+    await batch.commit();
+    show("createModal", false);
+  } catch (err) { showError("createError", "建立失敗：" + err.message); }
+  finally { $("createConfirm").disabled = false; }
+};
+
+// ─── 匯出 ───
+$("exportWeekBtn").onclick = () => {
+  const s = selected;
+  const rows = [["週次", "課程", "上課日期", "學號", "姓名", "報到時間", "發問次數"]];
+  attendees.forEach(a => rows.push([s.sessionNumber, s.courseName, s.classDate, a.studentId, a.name, fmtFull(a.checkedInAt), a.questions || 0]));
+  downloadCsv(`簽到_第${s.sessionNumber}週_${s.classDate}.csv`, rows);
+};
+$("exportAllBtn").onclick = async () => {
+  $("exportAllBtn").disabled = true;
+  try {
+    const snap = await getDocs(collection(db, "attendees"));
+    const all = snap.docs.map(d => d.data());
+    const bySession = Object.fromEntries(sessions.map(s => [s.id, s]));
+    // 明細
+    const detail = [["週次", "課程", "上課日期", "學號", "姓名", "報到時間", "發問次數"]];
+    all.map(a => ({ a, s: bySession[a.sessionId] })).filter(x => x.s)
+      .sort((x, y) => x.s.sessionNumber - y.s.sessionNumber || String(x.a.studentId).localeCompare(String(y.a.studentId)))
+      .forEach(({ a, s }) => detail.push([s.sessionNumber, s.courseName, s.classDate, a.studentId, a.name, fmtFull(a.checkedInAt), a.questions || 0]));
+    // 學生總表（每週一欄：出席 1/0，發問次數另列）
+    const students = {};
+    all.forEach(a => {
+      const st = students[a.studentId] ??= { studentId: a.studentId, name: a.name, weeks: {} };
+      st.weeks[a.sessionId] = a.questions || 0;
+    });
+    const head = ["學號", "姓名", "出席次數", "發問總數", ...sessions.map(s => `第${s.sessionNumber}週出席`), ...sessions.map(s => `第${s.sessionNumber}週發問`)];
+    const summary = [head];
+    Object.values(students).sort((x, y) => String(x.studentId).localeCompare(String(y.studentId))).forEach(st => {
+      const present = sessions.map(s => s.id in st.weeks ? 1 : 0);
+      const qs = sessions.map(s => st.weeks[s.id] ?? 0);
+      summary.push([st.studentId, st.name, present.reduce((a, b) => a + b, 0), qs.reduce((a, b) => a + b, 0), ...present, ...qs]);
+    });
+    const course = sessions[0]?.courseName || "課程";
+    downloadCsv(`${course}_全學期總表.csv`, summary);
+    setTimeout(() => downloadCsv(`${course}_全學期明細.csv`, detail), 400);
+  } catch (err) { showError("mainError", "匯出失敗：" + err.message); }
+  finally { $("exportAllBtn").disabled = false; }
+};
+
+// ─── 投影放大 ───
+$("fullscreenBtn").onclick = () => {
+  const s = selected, url = studentUrl(s.code);
+  $("bigTitle").textContent = `${s.courseName}・${weekName(s.sessionNumber)}・${s.classDate}`;
+  $("bigCode").textContent = s.code;
+  $("bigQr").innerHTML = "";
+  new QRCode($("bigQr"), { text: url, width: 380, height: 380, correctLevel: QRCode.CorrectLevel.M });
+  $("bigLink").textContent = url;
+  show("bigModal", true);
+};
+$("bigClose").onclick = () => show("bigModal", false);
+document.addEventListener("keydown", (e) => { if (e.key === "Escape") { show("bigModal", false); show("createModal", false); } });
+</script>
+</body>
+</html>

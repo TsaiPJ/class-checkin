@@ -1,0 +1,40 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // 老師 = 以 Email/密碼登入的帳號；學生 = 匿名登入
+    function isTeacher() {
+      return request.auth != null
+        && request.auth.token.firebase.sign_in_provider == 'password';
+    }
+    function isSignedIn() { return request.auth != null; }
+
+    // 週次（簽到場次）
+    match /sessions/{sessionId} {
+      allow read: if isSignedIn();       // 學生需要用代碼查詢週次
+      allow create, update, delete: if isTeacher();
+    }
+
+    // 簽到紀錄：文件 id = {sessionId}_{studentId}
+    match /attendees/{docId} {
+      allow read, update, delete: if isTeacher();
+
+      // 學生只能「新增」一筆，且必須：週次存在、狀態為 open、代碼相符、欄位完整
+      allow create: if isSignedIn()
+        && request.resource.data.keys().hasOnly(['sessionId','sessionCode','studentId','name','questions','uid','checkedInAt'])
+        && request.resource.data.sessionId is string
+        && request.resource.data.studentId is string
+        && request.resource.data.studentId.size() >= 3
+        && request.resource.data.studentId.size() <= 20
+        && request.resource.data.name is string
+        && request.resource.data.name.size() >= 1
+        && request.resource.data.name.size() <= 30
+        && request.resource.data.questions == 0
+        && request.resource.data.uid == request.auth.uid
+        && docId == request.resource.data.sessionId + '_' + request.resource.data.studentId
+        && exists(/databases/$(database)/documents/sessions/$(request.resource.data.sessionId))
+        && get(/databases/$(database)/documents/sessions/$(request.resource.data.sessionId)).data.status == 'open'
+        && get(/databases/$(database)/documents/sessions/$(request.resource.data.sessionId)).data.code == request.resource.data.sessionCode;
+    }
+  }
+}
