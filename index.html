@@ -155,7 +155,7 @@
 </div>
 
 <script type="module">
-import { firebaseConfig, APP_NAME, APP_SUBTITLE, DEFAULT_COURSE } from "./firebase-config.js";
+import { firebaseConfig, APP_NAME, APP_SUBTITLE, DEFAULT_COURSE, COURSE_ID } from "./firebase-config.js";
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-app.js";
 import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged }
   from "https://www.gstatic.com/firebasejs/10.12.4/firebase-auth.js";
@@ -240,9 +240,11 @@ $("logoutBtn").onclick = () => signOut(auth);
 // ─── sessions ───
 function listenSessions() {
   if (unsubSessions) unsubSessions();
-  const q = query(collection(db, "sessions"), orderBy("sessionNumber", "asc"));
+  // 只讀取這門課（COURSE_ID）的週次；排序在前端做，避免需要 Firestore 複合索引
+  const q = query(collection(db, "sessions"), where("courseId", "==", COURSE_ID));
   unsubSessions = onSnapshot(q, (snap) => {
-    sessions = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    sessions = snap.docs.map(d => ({ id: d.id, ...d.data() }))
+      .sort((a, b) => a.sessionNumber - b.sessionNumber);
     show("loadingView", false);
     if (!sessions.length) { show("emptyView", true); show("mainView", false); return; }
     show("emptyView", false); show("mainView", true);
@@ -359,7 +361,7 @@ $("createConfirm").onclick = async () => {
     const batch = writeBatch(db);
     sessions.filter(s => s.status === "open").forEach(s => batch.update(doc(db, "sessions", s.id), { status: "closed" }));
     const ref = doc(collection(db, "sessions"));
-    batch.set(ref, { courseName, sessionNumber: n, classDate, startTime, endTime,
+    batch.set(ref, { courseId: COURSE_ID, courseName, sessionNumber: n, classDate, startTime, endTime,
       code: genCode(classDate, n), status: "open", createdAt: serverTimestamp() });
     pendingSelectId = ref.id;   // 讓 snapshot 更新後自動選到新週
     await batch.commit();

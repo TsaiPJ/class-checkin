@@ -11,8 +11,12 @@ export const firebaseConfig = {
   appId: "1:1016775773404:web:39c6362b9cfe7d76ad3819"
 };
 
-// 系統標題（可自行修改）
+// ─────────────────────────────────────────────────────────────
+//  課程設定：每門課一個資料夾，只有這一段不同
+//  COURSE_ID 是資料庫裡區分課程用的代號（英文/數字，建立後請勿更改）
+// ─────────────────────────────────────────────────────────────
+export const COURSE_ID = "seminar";
 export const APP_NAME = "課堂簽到簿";
-export const APP_SUBTITLE = "QR Code 點名與課堂互動";
+export const APP_SUBTITLE = "專題討論｜QR Code 點名與課堂互動";
 // 預設課程名稱（建立第一週時會帶入，之後可在建週視窗修改）
 export const DEFAULT_COURSE = "專題討論";

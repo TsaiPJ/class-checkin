@@ -73,4 +73,7 @@ attendees/{sessionId}_{studentId}
 - **學生簽到失敗 `permission-denied`**：本週已關閉、代碼不對、或同一學號已簽到過；也請確認規則已發布、匿名登入已啟用。
 - **老師頁面一直「正在讀取」**：多半是 `firebase-config.js` 尚未填入正確設定，或規則未發布。開瀏覽器主控台（F12）看錯誤訊息。
 - **想改系統名稱／預設課程**：改 `firebase-config.js` 內的 `APP_NAME`、`APP_SUBTITLE`、`DEFAULT_COURSE`。
-- **多門課共用**：建議每門課各開一個 Firebase 專案（或各自複製一份資料夾、改 `firebase-config.js`），資料才不會混在一起。
+- **多門課共用**：同一個 Firebase 專案可以放多門課。每門課一個資料夾（例如根目錄＝專題討論、`medbiotech/`＝醫學生物技術概論），資料夾內放同一套 `index.html`、`student.html`、`style.css`，只有 `firebase-config.js` 的 `COURSE_ID`、`APP_SUBTITLE`、`DEFAULT_COURSE` 不同。`COURSE_ID` 是資料庫區分課程的代號，建立後請勿更改。老師帳號共用，登入任一門課的網址即可管理該課。
+  - 專題討論：`https://tsaipj.github.io/class-checkin/`
+  - 醫學生物技術概論：`https://tsaipj.github.io/class-checkin/medbiotech/`
+  - 再加一門課：複製 `medbiotech/` 資料夾改名，修改其中 `firebase-config.js` 的三個課程欄位即可。
