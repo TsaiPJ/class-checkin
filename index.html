@@ -84,6 +84,7 @@
         <div class="toolbar">
           <select id="sessionSelect" style="width:auto;min-width:200px"></select>
           <div class="toolbar-right">
+            <button class="btn btn-pick" id="pickBtn">🎲 隨機抽問</button>
             <button class="btn" id="exportWeekBtn">⬇ 匯出本週</button>
             <button class="btn" id="exportAllBtn">⬇ 匯出全學期</button>
             <button class="btn" id="toggleBtn">⨂ 關閉簽到</button>
@@ -139,6 +140,28 @@
     <div class="modal-actions">
       <button class="btn" id="createCancel">取消</button>
       <button class="btn btn-primary" id="createConfirm">建立並開放簽到</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── 隨機抽問視窗 ── -->
+<div class="modal-backdrop" id="pickModal" hidden>
+  <div class="modal pick-modal">
+    <div class="eyebrow">隨機抽問</div>
+    <h2>本次抽問學生</h2>
+    <p class="meta">從本週已簽到名單中隨機抽出。<span id="pickPool"></span></p>
+    <div class="pick-card">
+      <div class="pick-name" id="pickName">—</div>
+      <div class="pick-id" id="pickId"></div>
+      <div class="pick-hint">請回答問題</div>
+    </div>
+    <div class="modal-actions" style="justify-content:space-between;flex-wrap:wrap">
+      <label class="pick-opt" style="margin:0;font-weight:500"><input type="checkbox" id="pickNoRepeat" checked style="width:auto;margin-right:6px">本週已抽過的不重複</label>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn" id="pickClose">完成</button>
+        <button class="btn" id="pickPlusOne">＋1 發問並完成</button>
+        <button class="btn btn-primary" id="pickAgain">🎲 再抽一位</button>
+      </div>
     </div>
   </div>
 </div>
@@ -370,6 +393,54 @@ $("createConfirm").onclick = async () => {
   finally { $("createConfirm").disabled = false; }
 };
 
+// ─── 隨機抽問 ───
+let picked = null;                       // 目前抽到的學生
+const pickedIds = {};                    // { sessionId: Set(attendee.id) } 本週已抽過
+function pickPool() {
+  const used = pickedIds[selected.id] ||= new Set();
+  const noRepeat = $("pickNoRepeat").checked;
+  let pool = noRepeat ? attendees.filter(a => !used.has(a.id)) : attendees;
+  if (noRepeat && !pool.length && attendees.length) { used.clear(); pool = attendees; } // 全部抽過一輪就重置
+  return pool;
+}
+function drawStudent() {
+  const pool = pickPool();
+  if (!pool.length) return;
+  $("pickAgain").disabled = true;
+  // 快速滾動名字的動畫，最後停在抽中的學生
+  const finalPick = pool[Math.floor(Math.random() * pool.length)];
+  let i = 0, steps = Math.min(18, 6 + pool.length * 2);
+  const spin = () => {
+    const a = i < steps ? attendees[Math.floor(Math.random() * attendees.length)] : finalPick;
+    $("pickName").textContent = a.name;
+    $("pickId").textContent = a.studentId;
+    if (i++ < steps) { setTimeout(spin, 40 + i * 12); return; }
+    picked = finalPick;
+    (pickedIds[selected.id] ||= new Set()).add(finalPick.id);
+    $("pickName").classList.add("pick-done");
+    $("pickAgain").disabled = false;
+    const used = pickedIds[selected.id];
+    $("pickPool").textContent = $("pickNoRepeat").checked ? `本週已抽過 ${used.size}／${attendees.length} 人。` : "";
+  };
+  $("pickName").classList.remove("pick-done");
+  spin();
+}
+$("pickBtn").onclick = () => {
+  if (!attendees.length) { showError("mainError", "目前尚無已簽到學生，無法進行隨機抽問。"); return; }
+  showError("mainError", "");
+  show("pickModal", true);
+  drawStudent();
+};
+$("pickAgain").onclick = drawStudent;
+$("pickClose").onclick = () => show("pickModal", false);
+$("pickPlusOne").onclick = async () => {
+  if (picked) {
+    try { await updateDoc(doc(db, "attendees", picked.id), { questions: increment(1) }); }
+    catch (err) { showError("mainError", "更新失敗：" + err.message); }
+  }
+  show("pickModal", false);
+};
+
 // ─── 匯出 ───
 $("exportWeekBtn").onclick = () => {
   const s = selected;
@@ -419,7 +490,7 @@ $("fullscreenBtn").onclick = () => {
   show("bigModal", true);
 };
 $("bigClose").onclick = () => show("bigModal", false);
-document.addEventListener("keydown", (e) => { if (e.key === "Escape") { show("bigModal", false); show("createModal", false); } });
+document.addEventListener("keydown", (e) => { if (e.key === "Escape") { show("bigModal", false); show("createModal", false); show("pickModal", false); } });
 </script>
 </body>
 </html>

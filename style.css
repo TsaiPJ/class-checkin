@@ -135,6 +135,20 @@ tr:last-child td { border-bottom: 0; }
 }
 .modal { background: var(--card); border-radius: var(--radius); padding: 22px; width: 100%; max-width: 460px; }
 .modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 18px; }
+
+/* ── 隨機抽問 ── */
+.btn-pick { background: var(--red-bg); color: var(--red); border-color: #fecaca; font-weight: 600; }
+.btn-pick:hover { background: #fecaca; }
+.pick-modal { max-width: 520px; }
+.pick-card {
+  margin-top: 14px; padding: 28px 16px; border-radius: 14px; text-align: center;
+  background: var(--navy); color: #fff;
+}
+.pick-name { font-size: 44px; font-weight: 800; line-height: 1.2; letter-spacing: .04em; opacity: .75; transition: opacity .2s, transform .2s; }
+.pick-name.pick-done { opacity: 1; transform: scale(1.06); }
+.pick-id { font-size: 18px; color: #cbd5e1; margin-top: 6px; letter-spacing: .06em; }
+.pick-hint { margin-top: 14px; font-size: 14px; color: #cbd5e1; }
+.pick-opt { display: inline-flex; align-items: center; font-size: 13px; color: var(--muted); }
 .center { max-width: 460px; margin: 0 auto; }
 .big-check { font-size: 56px; text-align: center; margin: 8px 0; }
 .footer { text-align: center; color: var(--muted); font-size: 12px; margin: 30px 0 10px; }
